@@ -1,0 +1,128 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gc-poc
+  labels:
+    name: gc-poc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gc-poc
+  name: gc-poc
+  namespace: gc-poc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gc-poc
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: gc-poc
+    spec:
+      containers:
+      - image: cthu1hu/gc-flip:alpha-3
+        name: gc-flip
+        env:
+        - name: BF_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: bf-api-key
+              key: api-key
+              optional: false
+        resources:
+          limits:
+            cpu: 0.5
+            memory: 512Mi
+          requests:
+            cpu: 0.5
+            memory: 512Mi     
+        ports:
+        - containerPort: 5100
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  annotations:
+    kubernetes.digitalocean.com/load-balancer-id: "none-id"
+    service.beta.kubernetes.io/do-loadbalancer-size-unit: "1"
+    service.beta.kubernetes.io/do-loadbalancer-disable-lets-encrypt-dns-records: "false"
+    service.beta.kubernetes.io/do-loadbalancer-hostname: "gc.nftconjurer.org"
+  labels:
+    app: gc-poc
+  name: gc-poc
+  namespace: gc-poc
+spec:
+  ports:
+  - name: 80-80
+    port: 80
+    protocol: TCP
+    targetPort: 5100
+  selector:
+    app: gc-poc
+status:
+  loadBalancer: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    kubernetes.io/ingress.class: "nginx"
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/limit-rpm: "15"
+  name: gc-poc-ingress
+  namespace: gc-poc
+spec:
+  tls:
+  - hosts:
+    - gc.nftconjurer.org
+    secretName: echo-tls
+  rules:
+  - host: gc.nftconjurer.org
+    http:
+        paths:
+        - pathType: Prefix
+          path: "/"
+          backend:
+            service:
+              name: gc-poc
+              port:
+                number: 80
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  namespace: cert-manager
+spec:
+  acme:
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email address used for ACME registration
+    email: '***'
+    # Name of a secret used to store the ACME account private key
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    # Enable the HTTP-01 challenge provider
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name:  bf-api-key
+  namespace: gc-poc
+type: Opaque
+data:
+  api-key: MA==
