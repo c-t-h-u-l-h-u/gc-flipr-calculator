@@ -1,7 +1,7 @@
 import os
 import binascii
 import pandas as pd
-from flask import Flask
+from flask import Flask, jsonify
 from cardano_explorer import blockfrost_api
 from healthcheck import HealthCheck, EnvironmentDump
 
@@ -45,12 +45,10 @@ def main(wallet):
             return str(err)
     gh = [i["unit"] for i in wallet_info["amount"]
           if gc_policy_id in i["unit"]]
-    if gh:
-        return str(assets_info.loc[
+
+    return jsonify(flip=assets_info.loc[
                    assets_info['asset'].isin(gh)
                    ].dna_reward.sum())
-    else:
-        return str(0.0)
 
 
 if __name__ == '__main__':
